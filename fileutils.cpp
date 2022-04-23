@@ -1,4 +1,4 @@
- ///////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////
 // MIT License
 // 
 // Copyright (c) 2022 Henghui Guo
@@ -197,12 +197,10 @@ namespace cx {
 	bool do_remove_directories(const std::string& path) {
 		if (!is_directory(path)) return false;
 
-		cx::enum_files(path, [](const std::string& filename, cx::EnumFileType fileType, bool& cancelEnum)
-			{
+		cx::enum_files(path, [](const std::string& filename, cx::EnumFileType fileType, bool& cancelEnum) {
 				if (fileType & cx::EFT_DIR) {
 					do_remove_directories(filename);
-				}
-				else if (fileType & cx::EFT_FILE) {
+				} else if (fileType & cx::EFT_FILE) {
 					remove_file(filename);
 				}
 			}
@@ -218,11 +216,32 @@ namespace cx {
 
 	bool remove_file(const std::string& path) {
 		if (path.empty()) throw std::invalid_argument("path");
+
 #ifdef _WIN32
-		return ::DeleteFileA(path.c_str()) == TRUE;
+		BOOL r = ::DeleteFileA(path.c_str());
+		if (r == true) return true;
+		DWORD lastError = ::GetLastError();
+		if (lastError == ERROR_FILE_NOT_FOUND) return false;
 #else
-		return ::remove(path.c_str()) == 0;
+		struct stat st = { 0 };
+		if (stat(path.c_str(), &st) == -1)
+			return false;
+
+		if (st.st_mode & S_IFREG) {
+			int r = ::remove(path.c_str());
+			if (r == 0) return true;
+		}
 #endif // _WIN32
+		throw io_exception();
+	}
+
+	void rename(const std::string& oldName, const std::string& newName) {
+		if (oldName.empty()) throw std::invalid_argument("oldName");
+		if (newName.empty()) throw std::invalid_argument("newName");
+
+		int r = ::rename(oldName.c_str(), newName.c_str());
+		if (r == 0) return;
+		throw io_exception();
 	}
 
 	file_enumerator::file_enumerator() {
@@ -256,19 +275,15 @@ namespace cx {
 			throw io_exception();
 		
 		bool bFound = false;
-		do
-		{
-			if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-			{
+		do {
+			if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
 				if ((_Filters & EFT_DIR) == 0) continue;
 				if (strcmp(ffd.cFileName, ".") == 0 || strcmp(ffd.cFileName, "..") == 0) continue;
 
 				ftype = EFT_DIR;
 				bFound = true;
 				break;
-			}
-			else if (ffd.dwFileAttributes & FILE_ATTRIBUTE_ARCHIVE)
-			{
+			} else if (ffd.dwFileAttributes & FILE_ATTRIBUTE_ARCHIVE) {
 				if ((_Filters & EFT_FILE) == 0) continue;
 				ftype = EFT_FILE;
 				bFound = true;
@@ -282,8 +297,7 @@ namespace cx {
 			nativeEnumerator = hDir;
 			started = true;
 			return true;
-		}
-		else {
+		} else {
 			FindClose(hDir);
 			return false;
 		}
@@ -302,8 +316,7 @@ namespace cx {
 				ftype = EFT_DIR;
 				bFound = true;
 				break;
-			}
-			else  if (d->d_type & DT_REG) {
+			} else if (d->d_type & DT_REG) {
 				if ((_Filters & EFT_FILE) == 0) continue;
 				ftype = EFT_FILE;
 				bFound = true;
@@ -316,8 +329,7 @@ namespace cx {
 			nativeEnumerator = hDir;
 			started = true;
 			return true;
-		}
-		else {
+		} else {
 			closedir(hDir);
 			return false;
 		}
@@ -353,8 +365,7 @@ namespace cx {
 				ftype = EFT_DIR;
 				bFound = true;
 				break;
-			}
-			else if (ffd.dwFileAttributes & FILE_ATTRIBUTE_ARCHIVE) {
+			} else if (ffd.dwFileAttributes & FILE_ATTRIBUTE_ARCHIVE) {
 				ftype = EFT_FILE;
 				bFound = true;
 				break;
@@ -364,8 +375,7 @@ namespace cx {
 		if (bFound) {
 			fname = combine_paths(dname, ffd.cFileName);
 			return true;
-		}
-		else {
+		} else {
 			return false;
 		}
 #else 
@@ -380,8 +390,7 @@ namespace cx {
 				ftype = EFT_DIR;
 				bFound = true;
 				break;
-			}
-			else  if (d->d_type & DT_REG) {
+			} else if (d->d_type & DT_REG) {
 				ftype = EFT_FILE;
 				bFound = true;
 				break;
@@ -391,8 +400,7 @@ namespace cx {
 		if (bFound) {
 			fname = combine_paths(dname, d->d_name);
 			return true;
-		}
-		else {
+		} else {
 			return false;
 		}
 #endif // _WIN32
@@ -432,8 +440,7 @@ namespace cx {
 			bool doCount = false;
 			if (fileType == EFT_DIR) {
 				if (filters & EFT_DIR) doCount = true;
-			}
-			else if (fileType == EFT_FILE) {
+			} else if (fileType == EFT_FILE) {
 				if (filters & EFT_FILE) doCount = true;
 			}
 
@@ -449,24 +456,21 @@ namespace cx {
 		} while (fe.next());
 	}
 
-	int get_file_count(const std::string& dirName, int filters /*= EFT_DIR | EFT_FILE*/, int depth /*= 1*/)
-	{
+	int get_file_count(const std::string& dirName, int filters /*= EFT_DIR | EFT_FILE*/, int depth /*= 1*/) {
 		int currentDepth = 1;
 		int counter = 0;
 		_get_file_count_by_depth(dirName, filters, depth, currentDepth, counter);
 			return counter;
 	}
 
-	int get_all_file_count(const std::string& dirName, int filters /*= EFT_DIR | EFT_FILE*/)
-	{
+	int get_all_file_count(const std::string& dirName, int filters /*= EFT_DIR | EFT_FILE*/) {
 		int currentDepth = 1;
 		int counter = 0;
 		_get_file_count_by_depth(dirName, filters, 0, currentDepth, counter);
 		return counter;
 	}
 
-	std::string get_current_directory()
-	{
+	std::string get_current_directory() {
 #ifdef _WIN32
 		char buf[MAX_PATH];
 		::GetCurrentDirectoryA(MAX_PATH, buf);
@@ -513,6 +517,5 @@ namespace cx {
 		if (!ofs.is_open()) throw io_exception();
 		ofs.write((char*)data, length);
 	}
-
 
 }

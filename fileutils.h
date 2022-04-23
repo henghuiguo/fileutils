@@ -140,12 +140,22 @@ namespace cx {
 	/**
 	 * @brief Remove a file.
 	 * @param path Directory name.
-	 * @return true if successful, or false if failed for these reasons:
-	 *  1. File does not exists.
-	 *  2. No permission.
+	 * @return true if successful, or false if the file did not exists.
 	 * @throw invalid_argument When path is empty.
+	 * @throw io_exception For any other reasons.
+	 * 1. The path is not a directory or and other types.
+	 * 2. No permission.
 	 */
 	bool remove_file(const std::string& path);
+
+	/**
+	 * @brief Rename or move a file or directory.
+	 * @param oldName Old file name.
+	 * @param newName New file name.
+	 * @throw invalid_argument When name is empty.
+	 * @throw io_exception For any other reasons.
+	 */
+	void rename(const std::string& oldName, const std::string& newName);
 
 	/**
 	 * @brief The output file type in enumeration.
